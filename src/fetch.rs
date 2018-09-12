@@ -27,9 +27,46 @@ pub struct GpuRecord {
 
 #[derive(Debug)]
 pub struct HostRecord {
-    pub hostname: String,
     pub gpu_records: Vec<GpuRecord>
 }
+
+#[derive(Debug)]
+pub enum HostError {
+    Ssh(String),
+    Csv(csv::Error),
+}
+
+#[derive(Debug)]
+pub struct HostResult {
+    pub hostname: String,
+    pub result: Result<HostRecord, HostError>
+}
+
+use std::fmt;
+use std::error;
+
+impl fmt::Display for HostError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            HostError::Ssh(ref s) => write!(f, "SSH error: {}", s),
+            HostError::Csv(ref e) => e.fmt(f),
+        }
+    }
+}
+impl error::Error for HostError {
+    fn cause(&self) -> Option<&error::Error> {
+        match *self {
+            HostError::Ssh(_) => None,
+            HostError::Csv(ref e) => Some(e),
+        }
+    }
+}
+impl From<csv::Error> for HostError {
+    fn from(err: csv::Error) -> HostError {
+        HostError::Csv(err)
+    }
+}
+
 
 fn parse_record(r: RawGpuRecord) -> GpuRecord {
     let total_memory = string_to_f64(&r.total_memory);
@@ -44,7 +81,7 @@ fn parse_record(r: RawGpuRecord) -> GpuRecord {
     }
 }
 
-fn fetch(hostname: &String) -> Option<Vec<u8>>  {
+fn fetch(hostname: &String) -> Result<Vec<u8>, String>  {
     let out = Command::new("ssh")
             .arg(hostname)
             .arg("nvidia-smi")
@@ -53,31 +90,33 @@ fn fetch(hostname: &String) -> Option<Vec<u8>>  {
             .output()
             .expect("failed to execute process");
     match out.status.success() {
-        true  => Some(out.stdout),
-        false => None
+        true  => Ok(out.stdout),
+        false => Err(String::from_utf8(out.stderr).unwrap_or("parse error".to_string()))
     }
 }
 
-fn parse_csv(data: Vec<u8>) -> Result<Vec<GpuRecord>, csv::Error> {
+fn parse_csv(data: Vec<u8>) -> Result<HostRecord, csv::Error> {
     let rdr = Cursor::new(data);
     let mut rdr = ReaderBuilder::new()
         .has_headers(false)
         .from_reader(rdr);
-    rdr.deserialize().skip(1).map(|r| r.map(parse_record)).collect()
+    let gpu_records = rdr.deserialize().skip(1).map(|r| r.map(parse_record)).collect::<Result<_, _>>()?;
+    Ok(HostRecord { gpu_records })
 }
 
-fn fetch_host(hostname: &String) -> HostRecord {
-    let ssh_output = fetch(&hostname).unwrap();
-    HostRecord {
-        hostname: hostname.clone(),
-        gpu_records: parse_csv(ssh_output).unwrap(),
-    }
+fn fetch_host(hostname: &String) -> Result<HostRecord, HostError> {
+    let ssh_output = fetch(&hostname).map_err(HostError::Ssh)?;
+    Ok(parse_csv(ssh_output)?)
 }
 
-pub fn fetch_hosts(hostnames: Vec<String>) -> Vec<HostRecord> {
+pub fn fetch_hosts(hostnames: Vec<String>) -> Vec<HostResult> {
     let handles = hostnames.into_iter().map(|h| {
         thread::spawn(move || {
-            fetch_host(&h)
+            let result = fetch_host(&h);
+            HostResult {
+                hostname: h.clone(),
+                result,
+            }
         })
     });
     handles.map(|h| h.join().unwrap()).collect()

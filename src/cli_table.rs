@@ -2,7 +2,7 @@ use prettytable::Table;
 use prettytable::row::Row;
 use prettytable::cell::Cell;
 
-use fetch::{GpuRecord, HostRecord};
+use fetch::{GpuRecord, HostResult};
 
 fn gpu_record_row(r: &GpuRecord) -> Row {
     Row::new(vec![
@@ -23,11 +23,14 @@ fn gpu_record_table(rs: &Vec<GpuRecord>) -> Table {
     table
 }
 
-fn host_record_row(record: &HostRecord) -> Row {
-    row![record.hostname, gpu_record_table(&record.gpu_records)]
+fn host_record_row(result: &HostResult) -> Row {
+    match result.result {
+        Ok(ref record) => row![result.hostname, gpu_record_table(&record.gpu_records)],
+        Err(ref err) => row![result.hostname, format!("{}", err)]
+    }
 }
 
-pub fn host_records_table(records: &Vec<HostRecord>) -> Table {
+pub fn host_records_table(records: &Vec<HostResult>) -> Table {
     let mut table = Table::new();
     table.add_row(row!["Hostname", "GPUs"]);
     for record in records {
