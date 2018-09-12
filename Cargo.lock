@@ -54,7 +54,7 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
-name = "gpu"
+name = "gpu-monitor"
 version = "0.1.0"
 dependencies = [
  "csv 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",

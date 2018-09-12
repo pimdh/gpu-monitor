@@ -1,5 +1,5 @@
 [package]
-name = "gpu"
+name = "gpu-monitor"
 version = "0.1.0"
 authors = ["Pim de Haan <pimdehaan@gmail.com>"]
 
