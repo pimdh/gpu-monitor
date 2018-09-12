@@ -7,16 +7,16 @@ use fetch::{GpuRecord, HostResult};
 fn gpu_record_row(r: &GpuRecord) -> Row {
     Row::new(vec![
         Cell::new(&format!("{}", r.index)),
-        Cell::new(&r.name),
         Cell::new(&format!("{:.2}", r.total_memory / 1000.0)),
         Cell::new(&format!("{:.2}", r.used_memory / 1000.0)),
         Cell::new(&format!("{:.2}", r.utilization * 100.0)),
+        Cell::new(&r.name),
     ])
 }
 
 fn gpu_record_table(rs: &Vec<GpuRecord>) -> Table {
     let mut table = Table::new();
-    table.add_row(row!["Index", "Name", "Total mem (GB)", "Used mem (GB)", "Util (%)"]);
+    table.add_row(row!["Index", "Total mem (GB)", "Used mem (GB)", "Util (%)", "Name"]);
     for r in rs {
         table.add_row(gpu_record_row(r));
     }
