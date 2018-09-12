@@ -68,7 +68,7 @@ impl From<csv::Error> for HostError {
 }
 
 
-fn parse_record(r: RawGpuRecord) -> GpuRecord {
+fn parse_record(r: &RawGpuRecord) -> GpuRecord {
     let total_memory = string_to_f64(&r.total_memory);
     let used_memory = string_to_f64(&r.used_memory);
     let util = string_to_f64(&r.utilization);
@@ -81,7 +81,7 @@ fn parse_record(r: RawGpuRecord) -> GpuRecord {
     }
 }
 
-fn fetch(hostname: &String) -> Result<Vec<u8>, String>  {
+fn fetch(hostname: &str) -> Result<Vec<u8>, String>  {
     let out = Command::new("ssh")
             .arg(hostname)
             .arg("nvidia-smi")
@@ -89,9 +89,10 @@ fn fetch(hostname: &String) -> Result<Vec<u8>, String>  {
             .arg("--format=csv")
             .output()
             .expect("failed to execute process");
-    match out.status.success() {
-        true  => Ok(out.stdout),
-        false => Err(String::from_utf8(out.stderr).unwrap_or("parse error".to_string()))
+    if out.status.success() {
+        Ok(out.stdout)
+    } else {
+        Err(String::from_utf8(out.stderr).unwrap_or_else(|_|"parse error".to_string()))
     }
 }
 
@@ -100,11 +101,11 @@ fn parse_csv(data: Vec<u8>) -> Result<HostRecord, csv::Error> {
     let mut rdr = ReaderBuilder::new()
         .has_headers(false)
         .from_reader(rdr);
-    let gpu_records = rdr.deserialize().skip(1).map(|r| r.map(parse_record)).collect::<Result<_, _>>()?;
+    let gpu_records = rdr.deserialize().skip(1).map(|r| r.map(|x| parse_record(&x))).collect::<Result<_, _>>()?;
     Ok(HostRecord { gpu_records })
 }
 
-fn fetch_host(hostname: &String) -> Result<HostRecord, HostError> {
+fn fetch_host(hostname: &str) -> Result<HostRecord, HostError> {
     let ssh_output = fetch(&hostname).map_err(HostError::Ssh)?;
     Ok(parse_csv(ssh_output)?)
 }
@@ -122,7 +123,7 @@ pub fn fetch_hosts(hostnames: Vec<String>) -> Vec<HostResult> {
     handles.map(|h| h.join().unwrap()).collect()
 }
 
-fn string_to_f64(s: &String) -> f64 {
+fn string_to_f64(s: &str) -> f64 {
     lazy_static! {
         static ref RE: Regex = Regex::new("[^0-9.]+").unwrap();
     }

@@ -14,7 +14,7 @@ fn gpu_record_row(r: &GpuRecord) -> Row {
     ])
 }
 
-fn gpu_record_table(rs: &Vec<GpuRecord>) -> Table {
+fn gpu_record_table(rs: &[GpuRecord]) -> Table {
     let mut table = Table::new();
     table.add_row(row!["Index", "Total mem (GB)", "Used mem (GB)", "Util (%)", "Name"]);
     for r in rs {
@@ -30,7 +30,7 @@ fn host_record_row(result: &HostResult) -> Row {
     }
 }
 
-pub fn host_records_table(records: &Vec<HostResult>) -> Table {
+pub fn host_records_table(records: &[HostResult]) -> Table {
     let mut table = Table::new();
     table.add_row(row!["Hostname", "GPUs"]);
     for record in records {
