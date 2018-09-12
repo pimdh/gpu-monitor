@@ -2,6 +2,7 @@ extern crate regex;
 extern crate csv;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate serde_derive;
+#[macro_use] extern crate prettytable;
 
 use std::str;
 use std::process::Command;
@@ -10,6 +11,10 @@ use csv::ReaderBuilder;
 use regex::Regex;
 use std::thread;
 use std::env;
+
+use prettytable::Table;
+use prettytable::row::Row;
+use prettytable::cell::Cell;
 
 
 #[derive(Debug, Deserialize)]
@@ -57,6 +62,38 @@ fn parse_record(r: RawGpuRecord) -> GpuRecord {
     }
 }
 
+fn gpu_record_row(r: &GpuRecord) -> Row {
+    Row::new(vec![
+        Cell::new(&format!("{}", r.index)),
+        Cell::new(&r.name),
+        Cell::new(&format!("{:.0}", r.total_memory)),
+        Cell::new(&format!("{:.0}", r.memory_usage * 100.0)),
+        Cell::new(&format!("{:.0}", r.utilization * 100.0)),
+    ])
+}
+
+fn gpu_record_table(rs: &Vec<GpuRecord>) -> Table {
+    let mut table = Table::new();
+    table.add_row(row!["Index", "Name", "Total mem (MB)", "Mem usage (%)", "Utilization (%)"]);
+    for r in rs {
+        table.add_row(gpu_record_row(r));
+    }
+    table
+}
+
+fn host_record_row(record: &HostRecord) -> Row {
+    row![record.hostname, gpu_record_table(&record.gpu_records)]
+}
+
+fn host_records_table(records: &Vec<HostRecord>) -> Table {
+    let mut table = Table::new();
+    table.add_row(row!["Hostname", "GPUs"]);
+    for record in records {
+        table.add_row(host_record_row(record));
+    }
+    table
+}
+
 
 fn fetch(hostname: &String) -> Option<Vec<u8>>  {
     let out = Command::new("ssh")
@@ -100,5 +137,6 @@ fn fetch_hosts(hostnames: Vec<String>) -> Vec<HostRecord> {
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
-    println!("{:?}", fetch_hosts(args));
+    let records = fetch_hosts(args);
+    host_records_table(&records).printstd();
 }
